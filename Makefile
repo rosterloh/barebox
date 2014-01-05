@@ -1,8 +1,8 @@
 VERSION = 2013
-PATCHLEVEL = 11
+PATCHLEVEL = 12
 SUBLEVEL = 0
 EXTRAVERSION =
-NAME = La tour Eiffel
+NAME = Saint Nicholas Day
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -701,7 +701,7 @@ barebox.uimage: $(KBUILD_BINARY) FORCE
 	$(call if_changed,barebox_mkimage)
 
 ifdef CONFIG_X86
-barebox.S: barebox
+barebox.S barebox.s: barebox
 ifdef CONFIG_X86_HDBOOT
 	@echo "-------------------------------------------------" > barebox.S
 	@echo " * MBR content" >> barebox.S
@@ -723,7 +723,7 @@ endif
 	@echo " * Init Calls content" >> barebox.S
 	$(Q)$(OBJDUMP) -j .barebox_initcalls -d barebox >> barebox.S
 else
-barebox.S: barebox FORCE
+barebox.S barebox.s: barebox FORCE
 	$(call if_changed,disasm)
 endif
 
