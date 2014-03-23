@@ -67,9 +67,9 @@ struct alias_prop {
 
 static LIST_HEAD(aliases_lookup);
 
-struct device_node *root_node;
+static struct device_node *root_node;
 
-struct device_node *of_aliases;
+static struct device_node *of_aliases;
 
 #define OF_ROOT_NODE_SIZE_CELLS_DEFAULT 1
 #define OF_ROOT_NODE_ADDR_CELLS_DEFAULT 1
@@ -1378,11 +1378,32 @@ EXPORT_SYMBOL(of_find_node_by_path);
 struct device_node *of_find_node_by_path_or_alias(struct device_node *root,
 		const char *str)
 {
+	struct device_node *node;
+	const char *slash;
+	char *alias;
+	size_t len = 0;
+
 	if (*str ==  '/')
 		return of_find_node_by_path_from(root, str);
-	else
+
+	slash = strchr(str, '/');
+
+	if (!slash)
 		return of_find_node_by_alias(root, str);
 
+	len = slash - str + 1;
+	alias = xmalloc(len);
+	strlcpy(alias, str, len);
+
+	node = of_find_node_by_alias(root, alias);
+
+	if (!node)
+		goto out;
+
+	node = of_find_node_by_path_from(node, slash);
+out:
+	free(alias);
+	return node;
 }
 EXPORT_SYMBOL(of_find_node_by_path_or_alias);
 
@@ -1700,8 +1721,8 @@ int of_add_memory(struct device_node *node, bool dump)
 	return 0;
 }
 
-struct device_node *of_chosen;
-const char *of_model;
+static struct device_node *of_chosen;
+static const char *of_model;
 
 const char *of_get_model(void)
 {

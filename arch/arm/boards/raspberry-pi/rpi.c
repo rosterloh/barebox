@@ -126,13 +126,13 @@ static int rpi_env_init(void)
 	}
 
 	mkdir("/boot", 0666);
-	ret = mount(diskdev, "fat", "/boot");
+	ret = mount(diskdev, "fat", "/boot", NULL);
 	if (ret) {
 		printf("failed to mount %s\n", diskdev);
 		return 0;
 	}
 
-	default_environment_path = "/boot/barebox.env";
+	default_environment_path_set("/boot/barebox.env");
 
 	return 0;
 }
@@ -142,7 +142,6 @@ static int rpi_devices_init(void)
 	bcm2835_register_mci();
 	bcm2835_register_fb();
 	armlinux_set_architecture(MACH_TYPE_BCM2708);
-	armlinux_set_bootparams((void *)(0x00000100));
 	rpi_env_init();
 	return 0;
 }

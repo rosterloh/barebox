@@ -582,6 +582,10 @@ static int fsl_esdhc_probe(struct device_d *dev)
 	if (host->mci.f_min < 200000)
 		host->mci.f_min = 200000;
 	host->mci.f_max = rate;
+	if (pdata) {
+		host->mci.use_dsr = pdata->use_dsr;
+		host->mci.dsr_val = pdata->dsr_val;
+	}
 
 	mci_of_parse(&host->mci);
 
@@ -592,6 +596,8 @@ static int fsl_esdhc_probe(struct device_d *dev)
 
 static __maybe_unused struct of_device_id fsl_esdhc_compatible[] = {
 	{
+		.compatible = "fsl,imx25-esdhc",
+	}, {
 		.compatible = "fsl,imx51-esdhc",
 	}, {
 		.compatible = "fsl,imx53-esdhc",

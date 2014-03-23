@@ -96,7 +96,7 @@
 
 &audmux {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_audmux_2>;
+	pinctrl-0 = <&pinctrl_audmux>;
 	status = "okay";
 };
 
@@ -110,6 +110,22 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_can2_1>;
 	status = "okay";
+};
+
+&fec {
+	status = "okay";
+};
+
+&iomuxc {
+	imx6qdl-mba6x {
+		pinctrl_usbotg: usbotggrp {
+			fsl,pins = <MX6QDL_USBOTG_PINGRP1>;
+		};
+
+		pinctrl_audmux: audmuxgrp {
+			fsl,pins = <MX6QDL_AUDMUX_PINGRP2>;
+		};
+	};
 };
 
 &i2c1 {
@@ -172,7 +188,7 @@
 
 &usbotg {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_usbotg_1>;
+	pinctrl-0 = <&pinctrl_usbotg>;
 	phy_type = "utmi";
 	dr_mode = "host";
 	disable-over-current;

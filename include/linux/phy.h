@@ -85,12 +85,21 @@ struct mii_bus {
 
 	/* PHY addresses to be ignored when probing */
 	u32 phy_mask;
+
+	struct list_head list;
 };
 #define to_mii_bus(d) container_of(d, struct mii_bus, dev)
 
 int mdiobus_register(struct mii_bus *bus);
 void mdiobus_unregister(struct mii_bus *bus);
 struct phy_device *mdiobus_scan(struct mii_bus *bus, int addr);
+
+extern struct list_head mii_bus_list;
+
+int mdiobus_detect(struct device_d *dev);
+
+#define for_each_mii_bus(mii) \
+	list_for_each_entry(mii, &mii_bus_list, list)
 
 /**
  * mdiobus_read - Convenience function for reading a given MII mgmt register
@@ -161,6 +170,7 @@ struct phy_device {
 	int autoneg;
 	int force;
 
+	int registered;
 
 	/* private data pointer */
 	/* For use by PHYs to maintain extra state */
@@ -243,6 +253,8 @@ struct phy_device *get_phy_device(struct mii_bus *bus, int addr);
 int phy_init(void);
 int phy_init_hw(struct phy_device *phydev);
 
+int phy_register_device(struct phy_device* dev);
+
 /**
  * phy_read - Convenience function for reading a given PHY register
  * @phydev: the phy_device struct
@@ -268,6 +280,20 @@ int phy_device_connect(struct eth_device *dev, struct mii_bus *bus, int addr,
 		       void (*adjust_link) (struct eth_device *edev),
 		       u32 flags, phy_interface_t interface);
 
+#if defined(CONFIG_OFTREE)
+int of_phy_device_connect(struct eth_device *edev, struct device_node *phy_np,
+			  void (*adjust_link) (struct eth_device *edev),
+			  u32 flags, phy_interface_t interface);
+#else
+static inline int of_phy_device_connect(struct eth_device *edev,
+				struct device_node *phy_np,
+				void (*adjust_link) (struct eth_device *edev),
+				u32 flags, phy_interface_t interface)
+{
+	return -ENOSYS;
+}
+#endif
+
 int phy_update_status(struct phy_device *phydev);
 int phy_wait_aneg_done(struct phy_device *phydev);
 
@@ -284,13 +310,22 @@ int phy_register_fixup(const char *bus_id, u32 phy_uid, u32 phy_uid_mask,
 		int (*run)(struct phy_device *));
 int phy_register_fixup_for_id(const char *bus_id,
 		int (*run)(struct phy_device *));
-int phy_register_fixup_for_uid(u32 phy_uid, u32 phy_uid_mask,
-		int (*run)(struct phy_device *));
 int phy_scan_fixups(struct phy_device *phydev);
 
 int phy_read_mmd_indirect(struct phy_device *phydev, int prtad, int devad);
 void phy_write_mmd_indirect(struct phy_device *phydev, int prtad, int devad,
 				   u16 data);
+
+#ifdef CONFIG_PHYLIB
+int phy_register_fixup_for_uid(u32 phy_uid, u32 phy_uid_mask,
+		int (*run)(struct phy_device *));
+#else
+static inline int phy_register_fixup_for_uid(u32 phy_uid, u32 phy_uid_mask,
+		int (*run)(struct phy_device *))
+{
+	return -ENOSYS;
+}
+#endif
 
 extern struct bus_type mdio_bus_type;
 #endif /* __PHYDEV_H__ */

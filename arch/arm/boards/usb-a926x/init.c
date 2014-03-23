@@ -339,16 +339,16 @@ struct gpio_led dab_mmx_leds[] = {
 #ifdef CONFIG_KEYBOARD_GPIO
 struct gpio_keys_button keys[] = {
 	{
-		.code = KEY_UP,
+		.code = BB_KEY_UP,
 		.gpio = AT91_PIN_PB25,
 	}, {
-		.code = KEY_HOME,
+		.code = BB_KEY_HOME,
 		.gpio = AT91_PIN_PB13,
 	}, {
-		.code = KEY_DOWN,
+		.code = BB_KEY_DOWN,
 		.gpio = AT91_PIN_PA26,
 	}, {
-		.code = KEY_ENTER,
+		.code = BB_KEY_ENTER,
 		.gpio = AT91_PIN_PC9,
 	},
 };
@@ -403,7 +403,6 @@ static int usb_a9260_devices_init(void)
 	ek_add_device_button();
 	usb_a9260_device_dab_mmx();
 
-	armlinux_set_bootparams((void *)(AT91_CHIPSELECT_1 + 0x100));
 	usb_a9260_set_board_type();
 
 	devfs_add_partition("nand0", 0x00000, SZ_128K, DEVFS_PARTITION_FIXED, "at91bootstrap_raw");

@@ -1327,7 +1327,7 @@ int usb_gadget_poll(void)
 	u32 value;
 
 	if (!udc->udp_baseaddr)
-		return 0;
+		return -ENODEV;
 
 	value = gpio_get_value(udc->board.vbus_pin);
 	value ^= udc->board.vbus_active_low;
@@ -1417,7 +1417,7 @@ static struct poller_struct poller = {
 
 static int __init at91udc_probe(struct device_d *dev)
 {
-	struct at91_udc	*udc;
+	struct at91_udc	*udc = &controller;
 	int		retval;
 
 	if (!dev->platform_data) {
@@ -1427,7 +1427,6 @@ static int __init at91udc_probe(struct device_d *dev)
 	}
 
 	/* init software state */
-	udc = &controller;
 	udc->dev = dev;
 	udc->board = *(struct at91_udc_data *) dev->platform_data;
 	udc->enabled = 0;

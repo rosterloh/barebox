@@ -234,13 +234,13 @@ static void ek_add_device_lcdc(void) {}
 #ifdef CONFIG_KEYBOARD_GPIO
 struct gpio_keys_button keys[] = {
 	{
-		.code = KEY_UP,
+		.code = BB_KEY_UP,
 		.gpio = AT91_PIN_PA26,
 	}, {
-		.code = KEY_DOWN,
+		.code = BB_KEY_DOWN,
 		.gpio = AT91_PIN_PA25,
 	}, {
-		.code = KEY_ENTER,
+		.code = BB_KEY_ENTER,
 		.gpio = AT91_PIN_PA24,
 	},
 };
@@ -389,7 +389,6 @@ static int at91sam9261ek_devices_init(void)
 	devfs_add_partition("nand0", SZ_512K, SZ_128K, DEVFS_PARTITION_FIXED, "env_raw1");
 	dev_add_bb_dev("env_raw1", "env1");
 
-	armlinux_set_bootparams((void *)(AT91_CHIPSELECT_1 + 0x100));
 	if (machine_is_at91sam9g10ek())
 		armlinux_set_architecture(MACH_TYPE_AT91SAM9G10EK);
 	else

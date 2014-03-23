@@ -24,6 +24,7 @@
  */
 
 #include <common.h>
+#include <malloc.h>
 #include <driver.h>
 #include <init.h>
 #include <malloc.h>
@@ -48,11 +49,13 @@ struct z_stream_s ubifs_zlib_stream;
 
 /* compress.c */
 
+#ifdef CONFIG_ZLIB
 static int ubifs_deflate_decompress(const u8 *src, unsigned int slen, u8 *dst,
 		unsigned int *dlen)
 {
 	return deflate_decompress(&ubifs_zlib_stream, src, slen, dst, dlen);
 }
+#endif
 
 /* All UBIFS compressors */
 struct ubifs_compressor ubifs_compressors[UBIFS_COMPR_TYPES_CNT] = {
@@ -549,6 +552,42 @@ static int ubifs_stat(struct device_d *dev, const char *filename, struct stat *s
 	return 0;
 }
 
+static char *ubifs_symlink(struct inode *inode)
+{
+	struct ubifs_inode *ui;
+	char *symlink;
+
+	ui = ubifs_inode(inode);
+	symlink = malloc(ui->data_len + 1);
+
+	memcpy(symlink, ui->data, ui->data_len);
+	symlink[ui->data_len] = '\0';
+
+	return symlink;
+}
+
+static int ubifs_readlink(struct device_d *dev, const char *pathname, char *buf,
+			size_t bufsz)
+{
+	struct ubifs_priv *priv = dev->priv;
+	struct inode *inode;
+	char *symlink;
+	int len;
+
+	inode = ubifs_findfile(priv->sb, pathname);
+
+	if (!inode)
+		return -ENOENT;
+
+	symlink = ubifs_symlink(inode);
+
+	len = min(bufsz, strlen(symlink));
+	memcpy(buf, symlink, len);
+	free(symlink);
+
+	return 0;
+}
+
 static int ubifs_probe(struct device_d *dev)
 {
 	struct fs_device_d *fsdev = dev_to_fs_device(dev);
@@ -571,7 +610,7 @@ static int ubifs_probe(struct device_d *dev)
 		goto err_free;
 	}
 
-	priv->sb = ubifs_get_super(priv->ubi, 0);
+	priv->sb = ubifs_get_super(dev, priv->ubi, 0);
 	if (IS_ERR(priv->sb)) {
 		ret = PTR_ERR(priv->sb);
 		goto err;
@@ -609,6 +648,7 @@ static struct fs_driver_d ubifs_driver = {
 	.readdir   = ubifs_readdir,
 	.closedir  = ubifs_closedir,
 	.stat      = ubifs_stat,
+	.readlink  = ubifs_readlink,
 	.type = filetype_ubifs,
 	.flags     = 0,
 	.drv = {

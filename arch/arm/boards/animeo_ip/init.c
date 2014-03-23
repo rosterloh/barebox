@@ -306,7 +306,6 @@ static int animeo_ip_devices_init(void)
 	animeo_ip_add_device_buttons();
 	animeo_ip_add_device_led();
 
-	armlinux_set_bootparams((void *)(AT91_CHIPSELECT_1 + 0x100));
 	/*
 	 * in production the machine id used is the cpu module machine id
 	 * PICOCOM1
@@ -329,7 +328,7 @@ device_initcall(animeo_ip_devices_init);
 
 static struct device_d *usart0, *usart1;
 
-static void animeo_ip_shutdown_uart(void *base)
+static void animeo_ip_shutdown_uart(void __iomem *base)
 {
 #define ATMEL_US_BRGR	0x0020
 	writel(0, base + ATMEL_US_BRGR);

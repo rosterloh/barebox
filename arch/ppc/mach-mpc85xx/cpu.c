@@ -24,7 +24,10 @@
 
 #include <config.h>
 #include <common.h>
+#include <memory.h>
+#include <init.h>
 #include <asm/fsl_ddr_sdram.h>
+#include <asm-generic/memory_layout.h>
 #include <mach/mmu.h>
 #include <mach/immap_85xx.h>
 
@@ -68,16 +71,24 @@ phys_size_t fsl_get_effective_memsize(void)
 	sdram_size = 0;
 
 	for (ix = 0; ix < CFG_CHIP_SELECTS_PER_CTRL; ix++) {
-		if (in_be32(regs + DDR_OFF(CS0_CONFIG) + (ix * 8)) &
+		if (in_be32(regs + DDR_OFF(CS0_CONFIG) + (ix * 4)) &
 				SDRAM_CFG_MEM_EN) {
 			reg = in_be32(regs + DDR_OFF(CS0_BNDS) + (ix * 8));
 			/* start address */
 			san = (reg & 0x0fff00000) >>  16;
 			/* end address   */
 			ean = (reg & 0x00000fff);
-			sdram_size =  ((ean - san + 1) << 24);
+			sdram_size += ((ean - san + 1) << 24);
 		}
 	}
 
 	return sdram_size;
 }
+
+static int fsl_reserve_region(void)
+{
+	request_sdram_region("stack", _text_base - STACK_SIZE,
+			STACK_SIZE);
+	return 0;
+}
+coredevice_initcall(fsl_reserve_region);

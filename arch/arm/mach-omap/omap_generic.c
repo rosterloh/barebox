@@ -136,13 +136,13 @@ static int omap_env_init(void)
 	}
 
 	mkdir("/boot", 0666);
-	ret = mount(diskdev, "fat", "/boot");
+	ret = mount(diskdev, "fat", "/boot", NULL);
 	if (ret) {
 		printf("failed to mount %s\n", diskdev);
 		return 0;
 	}
 
-	default_environment_path = "/boot/barebox.env";
+	default_environment_path_set("/boot/barebox.env");
 
 	return 0;
 }

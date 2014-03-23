@@ -75,12 +75,11 @@ static ssize_t mtd_op_read(struct cdev *cdev, void* buf, size_t count,
 			offset, count);
 
 	ret = mtd_read(mtd, offset, count, &retlen, buf);
-
-	if(ret) {
-		printf("err %d\n", ret);
+	if (ret < 0)
 		return ret;
-	}
-	return retlen;
+	if (mtd->ecc_strength == 0)
+		return retlen;	/* device lacks ecc */
+	return ret >= mtd->bitflip_threshold ? -EUCLEAN : retlen;
 }
 
 #define NOTALIGNED(x) (x & (mtd->writesize - 1)) != 0
@@ -147,6 +146,7 @@ static int mtd_op_erase(struct cdev *cdev, size_t count, loff_t offset)
 {
 	struct mtd_info *mtd = cdev->priv;
 	struct erase_info erase;
+	uint32_t addr;
 	int ret;
 
 	ret = mtd_erase_align(mtd, &count, &offset);
@@ -155,9 +155,10 @@ static int mtd_op_erase(struct cdev *cdev, size_t count, loff_t offset)
 
 	memset(&erase, 0, sizeof(erase));
 	erase.mtd = mtd;
-	erase.addr = offset;
+	addr = offset;
 
 	if (!mtd->block_isbad) {
+		erase.addr = addr;
 		erase.len = count;
 		return mtd_erase(mtd, &erase);
 	}
@@ -165,22 +166,24 @@ static int mtd_op_erase(struct cdev *cdev, size_t count, loff_t offset)
 	erase.len = mtd->erasesize;
 
 	while (count > 0) {
-		dev_dbg(cdev->dev, "erase %d %d\n", erase.addr, erase.len);
+		dev_dbg(cdev->dev, "erase %d %d\n", addr, erase.len);
 
 		if (!mtd->allow_erasebad)
-			ret = mtd_block_isbad(mtd, erase.addr);
+			ret = mtd_block_isbad(mtd, addr);
 		else
 			ret = 0;
 
+		erase.addr = addr;
+
 		if (ret > 0) {
-			printf("Skipping bad block at 0x%08x\n", erase.addr);
+			printf("Skipping bad block at 0x%08x\n", addr);
 		} else {
 			ret = mtd_erase(mtd, &erase);
 			if (ret)
 				return ret;
 		}
 
-		erase.addr += mtd->erasesize;
+		addr += mtd->erasesize;
 		count -= count > mtd->erasesize ? mtd->erasesize : count;
 	}
 
@@ -237,6 +240,7 @@ int mtd_ioctl(struct cdev *cdev, int request, void *buf)
 		user->erasesize	= mtd->erasesize;
 		user->writesize	= mtd->writesize;
 		user->oobsize	= mtd->oobsize;
+		user->subpagesize = mtd->writesize >> mtd->subpage_sft;
 		user->mtd	= mtd;
 		/* The below fields are obsolete */
 		user->ecctype	= -1;
@@ -314,7 +318,20 @@ int mtd_block_markbad(struct mtd_info *mtd, loff_t ofs)
 int mtd_read(struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen,
 		u_char *buf)
 {
-	return mtd->read(mtd, from, len, retlen, buf);
+	int ret_code;
+	*retlen = 0;
+
+	/*
+	 * In the absence of an error, drivers return a non-negative integer
+	 * representing the maximum number of bitflips that were corrected on
+	 * any one ecc region (if applicable; zero otherwise).
+	 */
+	ret_code = mtd->read(mtd, from, len, retlen, buf);
+	if (unlikely(ret_code < 0))
+		return ret_code;
+	if (mtd->ecc_strength == 0)
+		return 0;	/* device lacks ecc */
+	return ret_code >= mtd->bitflip_threshold ? -EUCLEAN : 0;
 }
 
 int mtd_write(struct mtd_info *mtd, loff_t to, size_t len, size_t *retlen,
@@ -391,7 +408,9 @@ int add_mtd_device(struct mtd_info *mtd, char *devname, int device_id)
 	}
 
 	devfs_create(&mtd->cdev);
-	of_parse_partitions(&mtd->cdev, mtd->parent->device_node);
+
+	if (mtd->parent && !mtd->master)
+		of_parse_partitions(&mtd->cdev, mtd->parent->device_node);
 
 	list_for_each_entry(hook, &mtd_register_hooks, hook)
 		if (hook->add_mtd_device)

@@ -701,17 +701,17 @@ static int image_create_payload(void *payload_start, size_t payloadsz,
 	if (ret < 0) {
 		fprintf(stderr, "Cannot stat payload file %s\n",
 			payload_filename);
+		fclose(payload);
 		return ret;
 	}
 
 	ret = fread(payload_start, s.st_size, 1, payload);
+	fclose(payload);
 	if (ret != 1) {
 		fprintf(stderr, "Cannot read payload file %s\n",
 			payload_filename);
 		return -1;
 	}
-
-	fclose(payload);
 
 	*payload_checksum = image_checksum32(payload_start, payloadsz);
 	return 0;
@@ -1024,20 +1024,20 @@ static int image_create_config_parse_oneline(char *line,
 	} else if (!strcmp(keyword, "DESTADDR")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_DEST_ADDR;
-		el->dstaddr = strtol(value, NULL, 16);
+		el->dstaddr = strtoul(value, NULL, 16);
 	} else if (!strcmp(keyword, "EXECADDR")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_EXEC_ADDR;
-		el->execaddr = strtol(value, NULL, 16);
+		el->execaddr = strtoul(value, NULL, 16);
 	} else if (!strcmp(keyword, "NAND_BLKSZ")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_NAND_BLKSZ;
-		el->nandblksz = strtol(value, NULL, 16);
+		el->nandblksz = strtoul(value, NULL, 16);
 	} else if (!strcmp(keyword, "NAND_BADBLK_LOCATION")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_NAND_BADBLK_LOCATION;
 		el->nandbadblklocation =
-			strtol(value, NULL, 16);
+			strtoul(value, NULL, 16);
 	} else if (!strcmp(keyword, "NAND_ECCMODE")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_NAND_ECC_MODE;
@@ -1050,7 +1050,7 @@ static int image_create_config_parse_oneline(char *line,
 	} else if (!strcmp(keyword, "NAND_PAGESZ")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_NAND_PAGESZ;
-		el->nandpagesz = strtol(value, NULL, 16);
+		el->nandpagesz = strtoul(value, NULL, 16);
 	} else if (!strcmp(keyword, "BINARY")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		int argi = 0;
@@ -1061,7 +1061,7 @@ static int image_create_config_parse_oneline(char *line,
 			value = strtok_r(NULL, " ", &saveptr);
 			if (!value)
 				break;
-			el->binary.args[argi] = strtol(value, NULL, 16);
+			el->binary.args[argi] = strtoul(value, NULL, 16);
 			argi++;
 			if (argi >= BINARY_MAX_ARGS) {
 				fprintf(stderr,
@@ -1080,8 +1080,8 @@ static int image_create_config_parse_oneline(char *line,
 		}
 
 		el->type = IMAGE_CFG_DATA;
-		el->regdata.raddr = strtol(value1, NULL, 16);
-		el->regdata.rdata = strtol(value2, NULL, 16);
+		el->regdata.raddr = strtoul(value1, NULL, 16);
+		el->regdata.rdata = strtoul(value2, NULL, 16);
 	} else if (!strcmp(keyword, "PAYLOAD")) {
 		char *value = strtok_r(NULL, " ", &saveptr);
 		el->type = IMAGE_CFG_PAYLOAD;
@@ -1343,6 +1343,7 @@ static int image_create(const char *input, const char *output,
 	rewind(fcfg);
 
 	ret = image_create_config_parse(fcfg, image_cfg, &cfgn);
+	fclose(fcfg);
 	if (ret) {
 		free(image_cfg);
 		return -1;
