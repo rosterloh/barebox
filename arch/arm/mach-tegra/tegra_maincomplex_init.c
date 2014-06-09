@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Lucas Stach <l.stach@pengutronix.de>
+ * Copyright (C) 2013-2014 Lucas Stach <l.stach@pengutronix.de>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -25,6 +25,8 @@
 void tegra_maincomplex_entry(void)
 {
 	uint32_t rambase, ramsize;
+	enum tegra_chiptype chiptype;
+	u32 reg = 0;
 
 	arm_cpu_lowlevel_init();
 
@@ -36,10 +38,24 @@ void tegra_maincomplex_entry(void)
 	       TEGRA_CLK_RESET_BASE + CRC_CCLK_BURST_POLICY);
 	writel(CRC_SUPER_CDIV_ENB, TEGRA_CLK_RESET_BASE + CRC_SUPER_CCLK_DIV);
 
-	switch (tegra_get_chiptype()) {
+	chiptype = tegra_get_chiptype();
+
+	if (chiptype >= TEGRA114) {
+		asm("mrc p15, 1, %0, c9, c0, 2" : : "r" (reg));
+		reg &= ~7;
+		reg |= 2;
+		asm("mcr p15, 1, %0, c9, c0, 2" : : "r" (reg));
+	}
+
+	switch (chiptype) {
 	case TEGRA20:
 		rambase = 0x0;
 		ramsize = tegra20_get_ramsize();
+		break;
+	case TEGRA30:
+	case TEGRA124:
+		rambase = SZ_2G;
+		ramsize = tegra30_get_ramsize();
 		break;
 	default:
 		/* If we don't know the chiptype, better bail out */
@@ -47,5 +63,5 @@ void tegra_maincomplex_entry(void)
 	}
 
 	barebox_arm_entry(rambase, ramsize,
-			  readl(TEGRA_PMC_BASE + PMC_SCRATCH(10)));
+			  (void *)readl(TEGRA_PMC_BASE + PMC_SCRATCH(10)));
 }

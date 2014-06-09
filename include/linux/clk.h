@@ -196,6 +196,12 @@ static inline int clk_set_rate(struct clk *clk, unsigned long rate)
 #endif
 
 #ifdef CONFIG_COMMON_CLK
+
+#define CLK_SET_RATE_PARENT     (1 << 0) /* propagate rate change up one level */
+
+#define CLK_GATE_INVERTED	(1 << 0)
+#define CLK_GATE_HIWORD_MASK	(1 << 1)
+
 struct clk_ops {
 	int		(*enable)(struct clk *clk);
 	void		(*disable)(struct clk *clk);
@@ -237,36 +243,47 @@ struct clk_divider {
 	const char *parent;
 #define CLK_DIVIDER_ONE_BASED	(1 << 0)
 	unsigned flags;
+	const struct clk_div_table *table;
+	int max_div_index;
+	int table_size;
 };
 
 extern struct clk_ops clk_divider_ops;
 
 struct clk *clk_divider(const char *name, const char *parent,
-		void __iomem *reg, u8 shift, u8 width);
+		void __iomem *reg, u8 shift, u8 width, unsigned flags);
 struct clk *clk_divider_one_based(const char *name, const char *parent,
-		void __iomem *reg, u8 shift, u8 width);
+		void __iomem *reg, u8 shift, u8 width, unsigned flags);
 struct clk *clk_divider_table(const char *name,
 		const char *parent, void __iomem *reg, u8 shift, u8 width,
-		const struct clk_div_table *table);
+		const struct clk_div_table *table, unsigned flags);
 struct clk *clk_fixed_factor(const char *name,
-		const char *parent, unsigned int mult, unsigned int div);
+		const char *parent, unsigned int mult, unsigned int div,
+		unsigned flags);
 
 struct clk *clk_mux_alloc(const char *name, void __iomem *reg,
-		u8 shift, u8 width, const char **parents, u8 num_parents);
+		u8 shift, u8 width, const char **parents, u8 num_parents,
+		unsigned flags);
 void clk_mux_free(struct clk *clk_mux);
 struct clk *clk_mux(const char *name, void __iomem *reg,
-		u8 shift, u8 width, const char **parents, u8 num_parents);
+		u8 shift, u8 width, const char **parents, u8 num_parents,
+		unsigned flags);
 
 struct clk *clk_gate_alloc(const char *name, const char *parent,
-		void __iomem *reg, u8 shift);
+		void __iomem *reg, u8 shift, unsigned flags,
+		u8 clk_gate_flags);
 void clk_gate_free(struct clk *clk_gate);
 struct clk *clk_gate(const char *name, const char *parent, void __iomem *reg,
-		u8 shift);
+		u8 shift, unsigned flags, u8 clk_gate_flags);
 struct clk *clk_gate_inverted(const char *name, const char *parent, void __iomem *reg,
-		u8 shift);
+		u8 shift, unsigned flags);
 int clk_is_enabled(struct clk *clk);
 
 int clk_is_enabled_always(struct clk *clk);
+long clk_parent_round_rate(struct clk *clk, unsigned long rate,
+				unsigned long *prate);
+int clk_parent_set_rate(struct clk *clk, unsigned long rate,
+				unsigned long parent_rate);
 
 int clk_register(struct clk *clk);
 
@@ -303,6 +320,7 @@ struct clk *of_clk_src_simple_get(struct of_phandle_args *clkspec, void *data);
 struct clk *of_clk_get(struct device_node *np, int index);
 struct clk *of_clk_get_by_name(struct device_node *np, const char *name);
 struct clk *of_clk_get_from_provider(struct of_phandle_args *clkspec);
+char *of_clk_get_parent_name(struct device_node *np, unsigned int index);
 int of_clk_init(struct device_node *root, const struct of_device_id *matches);
 #else
 static inline struct clk *of_clk_get(struct device_node *np, int index)

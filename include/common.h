@@ -72,10 +72,11 @@
 #ifndef WARN
 #define WARN(condition, format...) ({					\
 	int __ret_warn_on = !!(condition);				\
-	if (unlikely(__ret_warn_on))					\
+	if (unlikely(__ret_warn_on)) {					\
 		__WARN();						\
 		puts("WARNING: ");					\
 		printf(format);						\
+	}								\
 	unlikely(__ret_warn_on);					\
 })
 #endif
@@ -164,6 +165,15 @@ extern void (*do_execute)(void *func, int argc, char *argv[]);
 void arch_shutdown(void);
 
 int run_shell(void);
+
+#ifdef CONFIG_SHELL_HUSH
+char *shell_expand(char *str);
+#else
+static inline char *shell_expand(char *str)
+{
+	return strdup(str);
+}
+#endif
 
 /* Force a compilation error if condition is true */
 #define BUILD_BUG_ON(condition) ((void)BUILD_BUG_ON_ZERO(condition))

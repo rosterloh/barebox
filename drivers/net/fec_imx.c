@@ -89,7 +89,7 @@ static int fec_miibus_read(struct mii_bus *bus, int phyAddr, int regAddr)
 	/*
 	 * it's now safe to read the PHY's register
 	 */
-	return readl(fec->regs + FEC_MII_DATA);
+	return readl(fec->regs + FEC_MII_DATA) & 0xffff;
 }
 
 static int fec_miibus_write(struct mii_bus *bus, int phyAddr,
@@ -581,7 +581,7 @@ static int fec_recv(struct eth_device *dev)
 			 */
 			frame = phys_to_virt(readl(&rbd->data_pointer));
 			frame_length = readw(&rbd->data_length) - 4;
-			net_receive(frame->data, frame_length);
+			net_receive(dev, frame->data, frame_length);
 			len = frame_length;
 		} else {
 			if (bd_status & FEC_RBD_ERR) {
@@ -621,6 +621,7 @@ static int fec_alloc_receive_packets(struct fec_priv *fec, int count, int size)
 #ifdef CONFIG_OFDEVICE
 static int fec_probe_dt(struct device_d *dev, struct fec_priv *fec)
 {
+	struct device_node *mdiobus;
 	int ret;
 
 	ret = of_get_phy_mode(dev->device_node);
@@ -628,6 +629,10 @@ static int fec_probe_dt(struct device_d *dev, struct fec_priv *fec)
 		fec->interface = PHY_INTERFACE_MODE_MII;
 	else
 		fec->interface = ret;
+
+	mdiobus = of_get_child_by_name(dev->device_node, "mdio");
+	if (mdiobus)
+		fec->miibus.dev.device_node = mdiobus;
 
 	return 0;
 }
@@ -732,9 +737,14 @@ static int fec_probe(struct device_d *dev)
 	fec->miibus.priv = fec;
 	fec->miibus.parent = dev;
 
-	mdiobus_register(&fec->miibus);
+	ret = mdiobus_register(&fec->miibus);
+	if (ret)
+		return ret;
 
-	eth_register(edev);
+	ret = eth_register(edev);
+	if (ret)
+		return ret;
+
 	return 0;
 
 err_free:

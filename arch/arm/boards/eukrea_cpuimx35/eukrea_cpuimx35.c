@@ -76,7 +76,6 @@ static struct fb_videomode imxfb_mode = {
 	.vsync_len	= 3,
 	.sync		= 0,
 	.vmode		= FB_VMODE_NONINTERLACED,
-	.flag		= 0,
 };
 
 static void eukrea_cpuimx35_enable_display(int enable)
@@ -348,18 +347,14 @@ static int do_cpufreq(int argc, char *argv[])
 		return COMMAND_ERROR_USAGE;
 	}
 
-	printf("Switched CPU frequency to %ldMHz\n", freq);
+	printf("Switched CPU frequency to %luMHz\n", freq);
 
 	return 0;
 }
 
-static const __maybe_unused char cmd_cpufreq_help[] =
-"Usage: cpufreq 399|532\n"
-"\n"
-"Set CPU frequency to <freq> MHz\n";
-
 BAREBOX_CMD_START(cpufreq)
 	.cmd            = do_cpufreq,
-	.usage          = "adjust CPU frequency",
-	BAREBOX_CMD_HELP(cmd_cpufreq_help)
+	BAREBOX_CMD_DESC("adjust CPU frequency")
+	BAREBOX_CMD_OPTS("399|532")
+	BAREBOX_CMD_GROUP(CMD_GRP_HWMANIP)
 BAREBOX_CMD_END

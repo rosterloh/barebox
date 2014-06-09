@@ -54,6 +54,7 @@ AFLAGS   += -include asm/unified.h -msoft-float $(AFLAGS_THUMB2)
 machine-$(CONFIG_ARCH_AT91)		:= at91
 machine-$(CONFIG_ARCH_BCM2835)		:= bcm2835
 machine-$(CONFIG_ARCH_CLPS711X)		:= clps711x
+machine-$(CONFIG_ARCH_DAVINCI)		:= davinci
 machine-$(CONFIG_ARCH_EP93XX)		:= ep93xx
 machine-$(CONFIG_ARCH_HIGHBANK)		:= highbank
 machine-$(CONFIG_ARCH_IMX)		:= imx
@@ -63,11 +64,13 @@ machine-$(CONFIG_ARCH_NOMADIK)		:= nomadik
 machine-$(CONFIG_ARCH_NETX)		:= netx
 machine-$(CONFIG_ARCH_OMAP)		:= omap
 machine-$(CONFIG_ARCH_PXA)		:= pxa
+machine-$(CONFIG_ARCH_ROCKCHIP)		:= rockchip
 machine-$(CONFIG_ARCH_SAMSUNG)		:= samsung
 machine-$(CONFIG_ARCH_SOCFPGA)		:= socfpga
 machine-$(CONFIG_ARCH_VERSATILE)	:= versatile
 machine-$(CONFIG_ARCH_VEXPRESS)		:= vexpress
 machine-$(CONFIG_ARCH_TEGRA)		:= tegra
+machine-$(CONFIG_ARCH_UEMD)		:= uemd
 machine-$(CONFIG_ARCH_ZYNQ)		:= zynq
 
 
@@ -165,13 +168,16 @@ KBUILD_IMAGE := barebox.ubl
 endif
 
 quiet_cmd_am35xx_spi_image = SPI-IMG $@
-      cmd_am35xx_spi_image = scripts/mk-am35xx-spi-image -a $(TEXT_BASE) $< > $@
+      cmd_am35xx_spi_image = scripts/mk-am3xxx-spi-image -s am35xx -a $(TEXT_BASE) $< > $@
 
 barebox.spi: $(KBUILD_BINARY) FORCE
 	$(call if_changed,am35xx_spi_image)
 
+MLO.spi: MLO FORCE
+	$(call if_changed,am35xx_spi_image)
+
 ifeq ($(CONFIG_OMAP_BUILD_SPI),y)
-KBUILD_IMAGE := barebox.spi
+KBUILD_IMAGE := MLO.spi
 endif
 
 quiet_cmd_zynq_image = ZYNQ-IMG $@

@@ -39,6 +39,8 @@ config ARCH_TEXT_BASE
 	default 0x4fc00000 if MACH_PHYTEC_PFLA02
 	default 0x4fc00000 if MACH_DFI_FS700_M60
 	default 0x4fc00000 if MACH_UDOO
+	default 0x4fc00000 if MACH_VARISCITE_MX6
+	default 0x4fc00000 if MACH_PCAAXL3
 
 config ARCH_IMX_INTERNAL_BOOT
 	bool "support internal boot mode"
@@ -109,6 +111,12 @@ config BAREBOX_UPDATE_IMX_EXTERNAL_NAND
 	depends on BAREBOX_UPDATE
 	default y
 
+config BAREBOX_UPDATE_IMX6_NAND
+	bool
+	depends on ARCH_IMX6
+	depends on BAREBOX_UPDATE
+	default y
+
 comment "Freescale i.MX System-on-Chip"
 
 config ARCH_IMX1
@@ -176,6 +184,15 @@ config MACH_TX25
 	help
 	  Say Y here if you are using the Ka-Ro tx25 board
 
+config MACH_PCA100
+	bool "phyCard-i.MX27"
+	select ARCH_IMX27
+	select HAVE_DEFAULT_ENVIRONMENT_NEW
+	select ARCH_IMX_EXTERNAL_BOOT_NAND
+	help
+	  Say Y here if you are using Phytec's phyCard-i.MX27 (pca100) equipped
+	  with a Freescale i.MX27 Processor
+
 config MACH_EFIKA_MX_SMARTBOOK
 	bool "Efika MX smartbook"
 	select ARCH_IMX51
@@ -201,8 +218,12 @@ config MACH_FREESCALE_MX53_VMX53
 	  Say Y here if you are using the Voipac Technologies X53-DMM-668
 	  module equipped with a Freescale i.MX53 Processor
 
+config MACH_PCAAXL3
+        bool "Phytec phyCARD-i.MX6 Quad"
+        select ARCH_IMX6
+
 config MACH_PHYTEC_PFLA02
-	bool "Phytec phyFLEX-i.MX6 Ouad"
+	bool "Phytec phyFLEX-i.MX6"
 	select ARCH_IMX6
 
 config MACH_DFI_FS700_M60
@@ -243,9 +264,18 @@ config MACH_SOLIDRUN_HUMMINGBOARD
 	bool "SolidRun Hummingboard"
 	select ARCH_IMX6
 
+config MACH_EMBEST_RIOTBOARD
+	bool "Embest RIoTboard"
+	select ARCH_IMX6
+
 config MACH_UDOO
 	bool "Freescale i.MX6 UDOO Board"
 	select ARCH_IMX6
+
+config MACH_VARISCITE_MX6
+	bool "Variscite i.MX6 Quad SOM"
+	select ARCH_IMX6
+
 
 endif
 
@@ -312,15 +342,6 @@ config MACH_IMX27ADS
 	select ARCH_IMX27
 	help
 	  Say Y here if you are using the Freescale i.MX27ads board equipped
-	  with a Freescale i.MX27 Processor
-
-config MACH_PCA100
-	bool "phyCard-i.MX27"
-	select ARCH_IMX27
-	select HAVE_DEFAULT_ENVIRONMENT_NEW
-	select ARCH_IMX_EXTERNAL_BOOT_NAND
-	help
-	  Say Y here if you are using Phytec's phyCard-i.MX27 (pca100) equipped
 	  with a Freescale i.MX27 Processor
 
 config MACH_PCM038
@@ -608,6 +629,16 @@ config IMX_OCOTP
 	  This adds support for the i.MX6 On-Chip OTP controller. Currently the
 	  only supported functionality is reading the MAC address and assigning
 	  it to an ethernet device.
+
+config IMX_OCOTP_WRITE
+	bool
+	prompt "Enable write support of i.MX6 CPUs OTP fuses"
+	depends on IMX_OCOTP
+	help
+	  This adds write support to IMX6 On-Chip OTP registers.
+	  Example of set MAC to 12:34:56:78:9A:BC (2 words with offset 0x22 * 4):
+		mw -l -d /dev/imx-ocotp 0x8C 0x00001234
+		mw -l -d /dev/imx-ocotp 0x88 0x56789ABC
 
 endmenu
 

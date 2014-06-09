@@ -76,9 +76,6 @@ static void loco_fec_reset(void)
 
 #define MX53_LOCO_USB_PWREN		IMX_GPIO_NR(7, 8)
 
-extern char flash_header_imx53_loco_start[];
-extern char flash_header_imx53_loco_end[];
-
 static int loco_late_init(void)
 {
 	struct mc13xxx *mc34708;
@@ -99,6 +96,7 @@ static int loco_late_init(void)
 		rev = readl(MX53_IIM_BASE_ADDR + 0x878);
 		set_board_rev(rev);
 		printf("MCIMX53-START-R board 1.0 rev %c\n", (rev == 1) ? 'A' : 'B' );
+		barebox_set_hostname("loco-r");
 		armlinux_set_revision(loco_system_rev);
 		/* Set VDDGP to 1.25V for 1GHz on SW1 */
 		mc13xxx_reg_read(mc34708, MC13892_REG_SW_0, &val);
@@ -146,8 +144,8 @@ static int loco_late_init(void)
 	} else {
 		/* so we have a DA9053 based board */
 		printf("MCIMX53-START board 1.0\n");
+		barebox_set_hostname("loco");
 		armlinux_set_revision(loco_system_rev);
-		return 0;
 	}
 
 	/* USB PWR enable */
@@ -161,8 +159,7 @@ static int loco_late_init(void)
 	armlinux_set_architecture(MACH_TYPE_MX53_LOCO);
 
 	imx53_bbu_internal_mmc_register_handler("mmc", "/dev/mmc0",
-		BBU_HANDLER_FLAG_DEFAULT, (void *)flash_header_imx53_loco_start,
-		flash_header_imx53_loco_end - flash_header_imx53_loco_start, 0);
+		BBU_HANDLER_FLAG_DEFAULT);
 
 	return 0;
 }

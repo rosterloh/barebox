@@ -47,7 +47,9 @@ struct ns16550_priv {
 	struct console_device cdev;
 	struct NS16550_plat plat;
 	int access_width;
+	int mmio;
 	struct clk *clk;
+	uint32_t fcrval;
 };
 
 static inline struct ns16550_priv *to_ns16550_priv(struct console_device *cdev)
@@ -59,6 +61,90 @@ struct ns16550_drvdata {
 	void (*init_port)(struct console_device *cdev);
 	const char *linux_console_name;
 };
+
+/**
+ * @brief read system i/o (byte)
+ * @param[in] addr address to read
+ * @param[in] mmio memory i/o space or i/o port space
+ */
+static inline uint8_t ns16550_sys_readb(void __iomem *addr, int mmio)
+{
+	if (mmio)
+		return readb(addr);
+	else
+		return (uint8_t) inb((int) addr);
+}
+
+/**
+ * @brief read system i/o (word)
+ * @param[in] addr address to read
+ * @param[in] mmio memory i/o space or i/o port space
+ */
+static inline uint16_t ns16550_sys_readw(void __iomem *addr, int mmio)
+{
+	if (mmio)
+		return readw(addr);
+	else
+		return (uint16_t) inw((int) addr);
+}
+
+/**
+ * @brief read system i/o (dword)
+ * @param[in] addr address to read
+ * @param[in] mmio memory i/o space or i/o port space
+ */
+static inline uint32_t ns16550_sys_readl(void __iomem *addr, int mmio)
+{
+	if (mmio)
+		return readl(addr);
+	else
+		return (uint32_t) inl((int) addr);
+}
+
+/**
+ * @brief write system i/o (byte)
+ * @param[in] val data to write
+ * @param[in] addr address to write to
+ * @param[in] mmio memory i/o space or i/o port space
+ */
+static inline void ns16550_sys_writeb(uint8_t val, void __iomem *addr,
+				      int mmio)
+{
+	if (mmio)
+		writeb(val, addr);
+	else
+		outb(val, (int) addr);
+}
+
+/**
+ * @brief read system i/o (word)
+ * @param[in] val data to write
+ * @param[in] addr address to write to
+ * @param[in] mmio memory i/o space or i/o port space
+ */
+static inline void ns16550_sys_writew(uint16_t val, void __iomem *addr,
+				      int mmio)
+{
+	if (mmio)
+		writew(val, addr);
+	else
+		outw(val, (int) addr);
+}
+
+/**
+ * @brief read system i/o (dword)
+ * @param[in] val data to write
+ * @param[in] addr address to write to
+ * @param[in] mmio memory i/o space or i/o port space
+ */
+static inline void ns16550_sys_writel(uint32_t val, void __iomem *addr,
+				      int mmio)
+{
+	if (mmio)
+		writel(val, addr);
+	else
+		outl(val, (int) addr);
+}
 
 /**
  * @brief read register
@@ -77,16 +163,13 @@ static uint32_t ns16550_read(struct console_device *cdev, uint32_t off)
 
 	off <<= plat->shift;
 
-	if (plat->reg_read)
-		return plat->reg_read((unsigned long)dev->priv, off);
-
 	switch (width) {
 	case IORESOURCE_MEM_8BIT:
-		return readb(dev->priv + off);
+		return ns16550_sys_readb(dev->priv + off, priv->mmio);
 	case IORESOURCE_MEM_16BIT:
-		return readw(dev->priv + off);
+		return ns16550_sys_readw(dev->priv + off, priv->mmio);
 	case IORESOURCE_MEM_32BIT:
-		return readl(dev->priv + off);
+		return ns16550_sys_readl(dev->priv + off, priv->mmio);
 	}
 	return -1;
 }
@@ -108,20 +191,15 @@ static void ns16550_write(struct console_device *cdev, uint32_t val,
 
 	off <<= plat->shift;
 
-	if (plat->reg_write) {
-		plat->reg_write(val, (unsigned long)dev->priv, off);
-		return;
-	}
-
 	switch (width) {
 	case IORESOURCE_MEM_8BIT:
-		writeb(val & 0xff, dev->priv + off);
+		ns16550_sys_writeb(val & 0xff, dev->priv + off, priv->mmio);
 		break;
 	case IORESOURCE_MEM_16BIT:
-		writew(val & 0xffff, dev->priv + off);
+		ns16550_sys_writew(val & 0xffff, dev->priv + off, priv->mmio);
 		break;
 	case IORESOURCE_MEM_32BIT:
-		writel(val, dev->priv + off);
+		ns16550_sys_writel(val, dev->priv + off, priv->mmio);
 		break;
 	}
 }
@@ -157,18 +235,13 @@ static int ns16550_setbaudrate(struct console_device *cdev, int baud_rate)
 {
 	unsigned int baud_divisor = ns16550_calc_divisor(cdev, baud_rate);
 	struct ns16550_priv *priv = to_ns16550_priv(cdev);
-	struct NS16550_plat *plat = &priv->plat;
 
 	ns16550_write(cdev, LCR_BKSE, lcr);
 	ns16550_write(cdev, baud_divisor & 0xff, dll);
 	ns16550_write(cdev, (baud_divisor >> 8) & 0xff, dlm);
 	ns16550_write(cdev, LCRVAL, lcr);
 	ns16550_write(cdev, MCRVAL, mcr);
-
-	if (plat->flags & NS16650_FLAG_DISABLE_FIFO)
-		ns16550_write(cdev, FCRVAL & ~FCR_FIFO_EN, fcr);
-	else
-		ns16550_write(cdev, FCRVAL, fcr);
+	ns16550_write(cdev, priv->fcrval, fcr);
 
 	return 0;
 }
@@ -185,14 +258,37 @@ static void ns16550_serial_init_port(struct console_device *cdev)
 	ns16550_write(cdev, 0x00, ier);
 }
 
+static void ns16450_serial_init_port(struct console_device *cdev)
+{
+	struct ns16550_priv *priv = to_ns16550_priv(cdev);
+
+	priv->fcrval &= ~FCR_FIFO_EN;
+
+	ns16550_serial_init_port(cdev);
+}
+
 #define omap_mdr1		8
 
 static void ns16550_omap_init_port(struct console_device *cdev)
 {
+	struct ns16550_priv *priv = to_ns16550_priv(cdev);
+
+	priv->plat.shift = 2;
+
 	ns16550_serial_init_port(cdev);
 
 	ns16550_write(cdev, 0x07, omap_mdr1);	/* Disable */
-	ns16550_write(cdev, 0x00,  omap_mdr1);
+	ns16550_write(cdev, 0x00, omap_mdr1);
+}
+
+#define JZ_FCR_UME 0x10 /* Uart Module Enable */
+
+static void ns16550_jz_init_port(struct console_device *cdev)
+{
+	struct ns16550_priv *priv = to_ns16550_priv(cdev);
+
+	priv->fcrval |= JZ_FCR_UME;
+	ns16550_serial_init_port(cdev);
 }
 
 /*********** Exposed Functions **********************************/
@@ -246,6 +342,10 @@ static void ns16550_probe_dt(struct device_d *dev, struct ns16550_priv *priv)
 	of_property_read_u32(np, "reg-shift", &priv->plat.shift);
 }
 
+static struct ns16550_drvdata ns16450_drvdata = {
+	.init_port = ns16450_serial_init_port,
+};
+
 static struct ns16550_drvdata ns16550_drvdata = {
 	.init_port = ns16550_serial_init_port,
 };
@@ -253,6 +353,10 @@ static struct ns16550_drvdata ns16550_drvdata = {
 static __maybe_unused struct ns16550_drvdata omap_drvdata = {
 	.init_port = ns16550_omap_init_port,
 	.linux_console_name = "ttyO",
+};
+
+static __maybe_unused struct ns16550_drvdata jz_drvdata = {
+	.init_port = ns16550_jz_init_port,
 };
 
 /**
@@ -270,15 +374,29 @@ static int ns16550_probe(struct device_d *dev)
 	struct console_device *cdev;
 	struct NS16550_plat *plat = (struct NS16550_plat *)dev->platform_data;
 	struct ns16550_drvdata *devtype;
+	struct resource *res;
 	int ret;
 
 	ret = dev_get_drvdata(dev, (unsigned long *)&devtype);
 	if (ret)
 		devtype = &ns16550_drvdata;
 
-	dev->priv = dev_request_mem_region(dev, 0);
-
 	priv = xzalloc(sizeof(*priv));
+
+	res = dev_get_resource(dev, IORESOURCE_MEM, 0);
+	priv->mmio = (res != NULL);
+	if (res) {
+		res = request_iomem_region(dev_name(dev), res->start, res->end);
+	} else {
+		res = dev_get_resource(dev, IORESOURCE_IO, 0);
+		if (res)
+			res = request_ioport_region(dev_name(dev), res->start,
+						    res->end);
+	}
+	if (!res)
+		goto err;
+	dev->priv = (void __force __iomem *) res->start;
+
 
 	if (plat)
 		priv->plat = *plat;
@@ -316,6 +434,11 @@ static int ns16550_probe(struct device_d *dev)
 	cdev->setbrg = ns16550_setbaudrate;
 	cdev->linux_console_name = devtype->linux_console_name;
 
+	if (plat && (plat->flags & NS16650_FLAG_DISABLE_FIFO))
+		priv->fcrval = FCRVAL & ~FCR_FIFO_EN;
+	else
+		priv->fcrval = FCRVAL;
+
 	devtype->init_port(cdev);
 
 	return console_register(cdev);
@@ -328,6 +451,9 @@ err:
 
 static struct of_device_id ns16550_serial_dt_ids[] = {
 	{
+		.compatible = "ns16450",
+		.data = (unsigned long)&ns16450_drvdata,
+	}, {
 		.compatible = "ns16550a",
 		.data = (unsigned long)&ns16550_drvdata,
 	}, {
@@ -344,6 +470,12 @@ static struct of_device_id ns16550_serial_dt_ids[] = {
 	}, {
 		.compatible = "ti,omap4-uart",
 		.data = (unsigned long)&omap_drvdata,
+	},
+#endif
+#if IS_ENABLED(CONFIG_MACH_MIPS_XBURST)
+	{
+		.compatible = "ingenic,jz4740-uart",
+		.data = (unsigned long)&jz_drvdata,
 	},
 #endif
 	{

@@ -161,7 +161,7 @@ static void print_stats(int nr_passes, int length)
 			* nr_passes);
 
 	for (i = 0; i < MAX_ECC_BITS; i++)
-		printf("ECC %d bit error(s)	: %d\n", i + 1, ecc_stats[i]);
+		printf("ECC %d bit error(s)	: %u\n", i + 1, ecc_stats[i]);
 
 	printf("ECC >%d bit error(s)	: %u\n", MAX_ECC_BITS, ecc_stats_over);
 	printf("ECC corrections failed	: %u\n", ecc_failed_cnt);
@@ -277,7 +277,7 @@ static int do_nandtest(int argc, char *argv[])
 	}
 	if (length + flash_offset > meminfo.size) {
 		printf("Length 0x%08llx + offset 0x%08llx exceeds "
-				"device size 0x%08x\n", length,
+				"device size 0x%08llx\n", length,
 				flash_offset, meminfo.size);
 		goto err;
 	}
@@ -336,18 +336,20 @@ err:
 	return 1;
 }
 
-/* String for usage of nandtest */
-static const __maybe_unused char cmd_nandtest_help[] =
-"Usage: nandtest [OPTION] <device>\n"
-		"  -t,  Really do a nandtest on device.\n"
-		"  -m,  Mark blocks bad if they appear so.\n"
-		"  -s   <seed>, Supply random seed.\n"
-		"  -i   <iterations>, Number of iterations.\n"
-		"  -o   <offset>, Start offset on flash.\n"
-		"  -l   <length>, Length of flash to test.\n";
+BAREBOX_CMD_HELP_START(nandtest)
+BAREBOX_CMD_HELP_TEXT("Options:")
+BAREBOX_CMD_HELP_OPT ("-t",  "Really do a nandtest on device")
+BAREBOX_CMD_HELP_OPT ("-m",  "Mark blocks bad if they appear so")
+BAREBOX_CMD_HELP_OPT ("-s SEED",   "supply random seed")
+BAREBOX_CMD_HELP_OPT ("-i ITERATIONS",  "nNumber of iterations")
+BAREBOX_CMD_HELP_OPT ("-o OFFS",  "start offset on flash")
+BAREBOX_CMD_HELP_OPT ("-l LEN",   "length of flash to test")
+BAREBOX_CMD_HELP_END
 
 BAREBOX_CMD_START(nandtest)
 	.cmd		= do_nandtest,
-	.usage		= "NAND Test",
+	BAREBOX_CMD_DESC("NAND flash memory test")
+	BAREBOX_CMD_OPTS("[-tmsiol] NANDDEVICE")
+	BAREBOX_CMD_GROUP(CMD_GRP_HWMANIP)
 	BAREBOX_CMD_HELP(cmd_nandtest_help)
 BAREBOX_CMD_END

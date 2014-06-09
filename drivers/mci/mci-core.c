@@ -1570,18 +1570,26 @@ static const char *mci_boot_names[] = {
 static int mci_card_probe(struct mci *mci)
 {
 	struct mci_host *host = mci->host;
-	int i, rc, disknum;
+	int i, rc, disknum, ret;
 
-	if (host->card_present && !host->card_present(host)) {
+	if (host->card_present && !host->card_present(host) &&
+	    !host->non_removable) {
 		dev_err(&mci->dev, "no card inserted\n");
 		return -ENODEV;
+	}
+
+	ret = regulator_enable(host->supply);
+	if (ret) {
+		dev_err(&mci->dev, "failed to enable regulator: %s\n",
+				strerror(-ret));
+		return ret;
 	}
 
 	/* start with a host interface reset */
 	rc = (host->init)(host, &mci->dev);
 	if (rc) {
 		dev_err(&mci->dev, "Cannot reset the SD/MMC interface\n");
-		return rc;
+		goto on_error;
 	}
 
 	mci_set_bus_width(mci, MMC_BUS_WIDTH_1);
@@ -1665,6 +1673,7 @@ on_error:
 	if (rc != 0) {
 		host->clock = 0;	/* disable the MCI clock */
 		mci_set_ios(mci);
+		regulator_disable(host->supply);
 	}
 
 	return rc;
@@ -1750,6 +1759,12 @@ int mci_register(struct mci_host *host)
 	host->mci = mci;
 	mci->dev.detect = mci_detect;
 
+	host->supply = regulator_get(host->hw_dev, "vmmc");
+	if (IS_ERR(host->supply)) {
+		ret = PTR_ERR(host->supply);
+		goto err_free;
+	}
+
 	ret = register_device(&mci->dev);
 	if (ret)
 		goto err_free;
@@ -1825,4 +1840,6 @@ void mci_of_parse(struct mci_host *host)
 			host->dsr_val = dsr_val;
 		}
 	}
+
+	host->non_removable = of_property_read_bool(np, "non-removable");
 }

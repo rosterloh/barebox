@@ -104,9 +104,8 @@ static const struct am33xx_emif_regs ddr3_regs = {
 };
 
 extern char __dtb_am335x_boneblack_start[];
-extern char __dtb_am335x_boneblack_end[];
+extern char __dtb_am335x_bone_common_start[];
 extern char __dtb_am335x_bone_start[];
-extern char __dtb_am335x_bone_end[];
 
 /**
  * @brief The basic entry point for board initialization.
@@ -119,19 +118,15 @@ extern char __dtb_am335x_bone_end[];
  */
 static noinline int beaglebone_sram_init(void)
 {
-	uint32_t fdt, fdt_end, sdram_start, sdram_size;
+	uint32_t sdram_size;
+	void *fdt;
 
-	sdram_start = 0x80000000;
+	fdt = __dtb_am335x_bone_common_start;
 
-	if (is_beaglebone_black()) {
+	if (is_beaglebone_black())
 		sdram_size = SZ_512M;
-		fdt = (uint32_t)__dtb_am335x_boneblack_start;
-		fdt_end = (uint32_t)__dtb_am335x_boneblack_end;
-	} else {
+	else
 		sdram_size = SZ_256M;
-		fdt = (uint32_t)__dtb_am335x_bone_start;
-		fdt_end = (uint32_t)__dtb_am335x_bone_end;
-	}
 
 	/* WDT1 is already running when the bootloader gets control
 	 * Disable it to avoid "random" resets
@@ -152,19 +147,12 @@ static noinline int beaglebone_sram_init(void)
 				&ddr2_data);
 	}
 
-	am33xx_uart0_soft_reset();
+	am33xx_uart_soft_reset((void *)AM33XX_UART0_BASE);
 	am33xx_enable_uart0_pin_mux();
 	omap_uart_lowlevel_init((void *)AM33XX_UART0_BASE);
 	putc_ll('>');
 
-	/*
-	 * Copy the devicetree blob to sdram so that the barebox code finds it
-	 * inside valid SDRAM instead of SRAM.
-	 */
-	memcpy((void *)sdram_start, (void *)fdt, fdt_end - fdt);
-	fdt = sdram_start;
-
-	barebox_arm_entry(sdram_start, sdram_size, fdt);
+	barebox_arm_entry(0x80000000, sdram_size, fdt);
 }
 
 ENTRY_FUNCTION(start_am33xx_beaglebone_sram, bootinfo, r1, r2)
@@ -183,14 +171,15 @@ ENTRY_FUNCTION(start_am33xx_beaglebone_sram, bootinfo, r1, r2)
 
 ENTRY_FUNCTION(start_am33xx_beaglebone_sdram, r0, r1, r2)
 {
-	uint32_t fdt, sdram_size;
+	uint32_t sdram_size;
+	void *fdt;
 
 	if (is_beaglebone_black()) {
 		sdram_size = SZ_512M;
-		fdt = (uint32_t)__dtb_am335x_boneblack_start;
+		fdt = __dtb_am335x_boneblack_start;
 	} else {
 		sdram_size = SZ_256M;
-		fdt = (uint32_t)__dtb_am335x_bone_start;
+		fdt = __dtb_am335x_bone_start;
 	}
 
 	fdt -= get_runtime_offset();

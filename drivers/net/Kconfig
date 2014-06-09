@@ -32,6 +32,13 @@ config DRIVER_NET_AR231X
 	help
 	  Support for the AR231x/531x ethernet controller
 
+config DRIVER_NET_ARC_EMAC
+	bool "ARC Ethernet MAC driver"
+	select PHYLIB
+	help
+	  This option enables support for the ARC EMAC ethernet
+	  controller.
+
 config DRIVER_NET_AT91_ETHER
 	bool "at91 ethernet driver"
 	depends on HAS_AT91_ETHER
@@ -73,6 +80,7 @@ config DRIVER_NET_EP93XX
 
 config DRIVER_NET_ETHOC
 	bool "OpenCores ethernet MAC driver"
+	select PHYLIB
 	help
 	  This option enables support for the OpenCores 10/100 Mbps
 	  Ethernet MAC core.

@@ -7,10 +7,7 @@
 static int mtd_part_read(struct mtd_info *mtd, loff_t from, size_t len,
                 size_t *retlen, u_char *buf)
 {
-	struct mtd_ecc_stats stats;
 	int res;
-
-	stats = mtd->master->ecc_stats;
 
 	if (from >= mtd->size)
 		len = 0;
@@ -75,8 +72,8 @@ static int mtd_part_block_markbad(struct mtd_info *mtd, loff_t ofs)
 	return res;
 }
 
-struct mtd_info *mtd_add_partition(struct mtd_info *mtd, off_t offset, size_t size,
-		unsigned long flags, const char *name)
+struct mtd_info *mtd_add_partition(struct mtd_info *mtd, off_t offset,
+		uint64_t size, unsigned long flags, const char *name)
 {
 	struct mtd_info *part;
 	int start = 0, end = 0, i;
@@ -115,10 +112,13 @@ struct mtd_info *mtd_add_partition(struct mtd_info *mtd, off_t offset, size_t si
 	part->numeraseregions = end - start;
 
 	part->read = mtd_part_read;
-	part->write = mtd_part_write;
-	part->erase = mtd_part_erase;
+	if (IS_ENABLED(CONFIG_MTD_WRITE)) {
+		part->write = mtd_part_write;
+		part->erase = mtd_part_erase;
+		part->block_markbad = mtd->block_markbad ? mtd_part_block_markbad : NULL;
+	}
+
 	part->block_isbad = mtd->block_isbad ? mtd_part_block_isbad : NULL;
-	part->block_markbad = mtd->block_markbad ? mtd_part_block_markbad : NULL;
 	part->size = size;
 	part->name = strdup(name);
 

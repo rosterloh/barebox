@@ -74,34 +74,25 @@ static int request_memtest_regions(struct list_head *list)
 			continue;
 		}
 
+		r = list_first_entry(&bank->res->children,
+				     struct resource, sibling);
+		start = PAGE_ALIGN(bank->res->start);
+		end = PAGE_ALIGN_DOWN(r->start);
+		r_prev = r;
+		if (start != end) {
+			size = end - start;
+			ret = alloc_memtest_region(list, start, size);
+			if (ret < 0)
+				return ret;
+		}
 		/*
 		 * We assume that the regions are sorted in this list
 		 * So the first element has start boundary on bank->res->start
-		 * and the last element hast end boundary on bank->res->end
+		 * and the last element hast end boundary on bank->res->end.
+		 *
+		 * Between used regions. Start from second entry.
 		 */
-		list_for_each_entry(r, &bank->res->children, sibling) {
-			/*
-			 * Do on head element for bank boundary
-			 */
-			if (r->sibling.prev == &bank->res->children) {
-				/*
-				 * remember last used element
-				 */
-				start = PAGE_ALIGN(bank->res->start);
-				end = PAGE_ALIGN_DOWN(r->start);
-				r_prev = r;
-				if (start == end)
-					continue;
-				size = end - start;
-
-				ret = alloc_memtest_region(list, start, size);
-				if (ret < 0)
-					return ret;
-				continue;
-			}
-			/*
-			 * Between used regions
-			 */
+		list_for_each_entry_from(r, &bank->res->children, sibling) {
 			start = PAGE_ALIGN(r_prev->end);
 			end = PAGE_ALIGN_DOWN(r->start);
 			r_prev = r;
@@ -112,21 +103,20 @@ static int request_memtest_regions(struct list_head *list)
 			ret = alloc_memtest_region(list, start, size);
 			if (ret < 0)
 				return ret;
+		}
 
-			if (list_is_last(&r->sibling, &bank->res->children)) {
-				/*
-				 * Do on head element for bank boundary
-				 */
-				start = PAGE_ALIGN(r->end);
-				end = PAGE_ALIGN_DOWN(bank->res->end) - 1;
-				size = end - start + 1;
-				if (start >= end)
-					continue;
-
-				ret = alloc_memtest_region(list, start, size);
-				if (ret < 0)
-					return ret;
-			}
+		/*
+		 * Do on head element for bank boundary.
+		 */
+		r = list_last_entry(&bank->res->children,
+				     struct resource, sibling);
+		start = PAGE_ALIGN(r->end);
+		end = PAGE_ALIGN_DOWN(bank->res->end) - 1;
+		size = end - start + 1;
+		if (start < end) {
+			ret = alloc_memtest_region(list, start, size);
+			if (ret < 0)
+				return ret;
 		}
 	}
 
@@ -232,22 +222,25 @@ out:
 		if (ret == -EINTR)
 			printf("\n");
 
-		printf("Memtest failed.\n");
+		printf("Memtest failed. Error: %d\n", ret);
 		return 1;
-	} else {
-		printf("Memtest successful.\n");
-		return 0;
 	}
+
+	printf("Memtest successful.\n");
+	return 0;
 }
 
-static const __maybe_unused char cmd_memtest_help[] =
-"Usage: memtest [OPTION]...\n"
-"memtest related commands\n"
-"	-i	<iterations>	iterations [default=1, endless=0].\n"
-"	-b			perform only a test on buslines.";
+
+BAREBOX_CMD_HELP_START(memtest)
+BAREBOX_CMD_HELP_TEXT("Options:")
+BAREBOX_CMD_HELP_OPT("-i ITERATIONS", "perform number of iterations (default 1, 0 is endless)")
+BAREBOX_CMD_HELP_OPT("-b", "perform only a test on bus lines")
+BAREBOX_CMD_HELP_END
 
 BAREBOX_CMD_START(memtest)
 	.cmd		= do_memtest,
-	.usage		= "Memory Test",
+	BAREBOX_CMD_DESC("extensive memory test")
+	BAREBOX_CMD_OPTS("[-ib]")
+	BAREBOX_CMD_GROUP(CMD_GRP_MEM)
 	BAREBOX_CMD_HELP(cmd_memtest_help)
 BAREBOX_CMD_END

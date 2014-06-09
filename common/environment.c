@@ -60,6 +60,16 @@ char *default_environment_path_get(void)
 {
 	return default_environment_path;
 }
+#else
+static inline int protect(int fd, size_t count, unsigned long offset, int prot)
+{
+	return 0;
+}
+
+static inline int erase(int fd, size_t count, unsigned long offset)
+{
+	return 0;
+}
 #endif
 
 static int file_size_action(const char *filename, struct stat *statbuf,
@@ -167,7 +177,7 @@ int envfs_save(const char *filename, const char *dirname)
 	struct envfs_super *super;
 	int envfd, size, ret;
 	struct action_data data;
-	void *buf = NULL;
+	void *buf = NULL, *wbuf;
 
 	data.writep = NULL;
 	data.base = dirname;
@@ -196,15 +206,47 @@ int envfs_save(const char *filename, const char *dirname)
 
 	envfd = open(filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
 	if (envfd < 0) {
-		printf("Open %s %s\n", filename, errno_str());
-		ret = envfd;
+		printf("could not open %s: %s\n", filename, errno_str());
+		ret = -errno;
 		goto out1;
 	}
 
-	if (write(envfd, buf, size  + sizeof(struct envfs_super)) <
-			sizeof(struct envfs_super)) {
-		perror("write");
-		ret = -1;	/* FIXME */
+	ret = protect(envfd, ~0, 0, 0);
+
+	/* ENOSYS is no error here, many devices do not need it */
+	if (ret && errno != ENOSYS) {
+		printf("could not unprotect %s: %s\n", filename, errno_str());
+		goto out;
+	}
+
+	ret = erase(envfd, ~0, 0);
+
+	/* ENOSYS is no error here, many devices do not need it */
+	if (ret && errno != ENOSYS) {
+		printf("could not erase %s: %s\n", filename, errno_str());
+		goto out;
+	}
+
+	size += sizeof(struct envfs_super);
+
+	wbuf = buf;
+
+	while (size) {
+		ssize_t now = write(envfd, wbuf, size);
+		if (now < 0) {
+			ret = -errno;
+			goto out;
+		}
+
+		wbuf += now;
+		size -= now;
+	}
+
+	ret = protect(envfd, ~0, 0, 1);
+
+	/* ENOSYS is no error here, many devices do not need it */
+	if (ret && errno != ENOSYS) {
+		printf("could not protect %s: %s\n", filename, errno_str());
 		goto out;
 	}
 
@@ -253,9 +295,9 @@ static int envfs_check_data(struct envfs_super *super, const void *buf, size_t s
 	return 0;
 }
 
-static int envfs_load_data(void *buf, size_t size, const char *dir, unsigned flags)
+static int envfs_load_data(struct envfs_super *super, void *buf, size_t size,
+		const char *dir, unsigned flags)
 {
-	struct envfs_super super;
 	int fd, ret = 0;
 	char *str, *tmp;
 	int headerlen_full;
@@ -281,7 +323,7 @@ static int envfs_load_data(void *buf, size_t size, const char *dir, unsigned fla
 		inode_size = ENVFS_32(inode->size);
 		inode_headerlen = ENVFS_32(inode->headerlen);
 		namelen = strlen(inode->data) + 1;
-		if (super.major < 1)
+		if (super->major < 1)
 			inode_end = &inode_end_dummy;
 		else
 			inode_end = (struct envfs_inode_end *)(buf + PAD4(namelen));
@@ -363,7 +405,7 @@ int envfs_load_from_buf(void *buf, int len, const char *dir, unsigned flags)
 	if (ret)
 		return ret;
 
-	ret = envfs_load_data(buf, size, dir, flags);
+	ret = envfs_load_data(super, buf, size, dir, flags);
 
 	return ret;
 }
@@ -380,14 +422,16 @@ int envfs_load_from_buf(void *buf, int len, const char *dir, unsigned flags)
 int envfs_load(const char *filename, const char *dir, unsigned flags)
 {
 	struct envfs_super super;
-	void *buf = NULL;
+	void *buf = NULL, *rbuf;
 	int envfd;
 	int ret = 0;
-	size_t size;
+	size_t size, rsize;
 
 	envfd = open(filename, O_RDONLY);
 	if (envfd < 0) {
-		printf("Open %s %s\n", filename, errno_str());
+		printf("environment load %s: %s\n", filename, errno_str());
+		if (errno == ENOENT)
+			printf("Maybe you have to create the partition.\n");
 		return -1;
 	}
 
@@ -404,18 +448,35 @@ int envfs_load(const char *filename, const char *dir, unsigned flags)
 		goto out;
 
 	buf = xmalloc(size);
-	ret = read(envfd, buf, size);
-	if (ret < size) {
-		perror("read");
-		ret = -errno;
-		goto out;
+
+	rbuf = buf;
+	rsize = size;
+
+	while (rsize) {
+		ssize_t now;
+
+		now = read(envfd, rbuf, rsize);
+		if (now < 0) {
+			perror("read");
+			ret = -errno;
+			goto out;
+		}
+
+		if (!now) {
+			printf("%s: premature end of file\n", filename);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		rbuf += now;
+		rsize -= now;
 	}
 
 	ret = envfs_check_data(&super, buf, size);
 	if (ret)
 		goto out;
 
-	ret = envfs_load_data(buf, size, dir, flags);
+	ret = envfs_load_data(&super, buf, size, dir, flags);
 	if (ret)
 		goto out;
 
@@ -426,49 +487,3 @@ out:
 
 	return ret;
 }
-
-#ifdef __BAREBOX__
-/**
- * Try to register an environment storage on a device's partition
- * @return 0 on success
- *
- * We rely on the existence of a usable storage device, already attached to
- * our system, to get something like a persistent memory for our environment.
- * We need to specify the partition number to use on this device.
- * @param[in] devname Name of the device
- * @param[in] partnr Partition number
- * @return 0 on success, anything else in case of failure
- */
-
-int envfs_register_partition(const char *devname, unsigned int partnr)
-{
-	struct cdev *cdev, *part;
-	char *partname;
-
-	if (!devname)
-		return -EINVAL;
-
-	cdev = cdev_by_name(devname);
-	if (cdev == NULL) {
-		pr_err("No %s present\n", devname);
-		return -ENODEV;
-	}
-	partname = asprintf("%s.%d", devname, partnr);
-	cdev = cdev_by_name(partname);
-	if (cdev == NULL) {
-		pr_err("No %s partition available\n", partname);
-		pr_info("Please create the partition %s to store the env\n", partname);
-		return -ENODEV;
-	}
-
-	part = devfs_add_partition(partname, 0, cdev->size,
-						DEVFS_PARTITION_FIXED, "env0");
-	if (part)
-		return 0;
-
-	free(partname);
-
-	return -EINVAL;
-}
-EXPORT_SYMBOL(envfs_register_partition);
-#endif

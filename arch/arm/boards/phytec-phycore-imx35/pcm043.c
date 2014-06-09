@@ -73,7 +73,6 @@ static struct fb_videomode pcm043_fb_mode[] = {
 		.vsync_len	= 1,
 		.sync		= FB_SYNC_VERT_HIGH_ACT | FB_SYNC_OE_ACT_HIGH,
 		.vmode		= FB_VMODE_NONINTERLACED,
-		.flag		= 0,
 	}, {
 		/* 240x320 @ 60 Hz */
 		.name		= "Sharp-LQ035Q7",
@@ -90,7 +89,6 @@ static struct fb_videomode pcm043_fb_mode[] = {
 		.sync		= FB_SYNC_HOR_HIGH_ACT | FB_SYNC_SHARP_MODE | \
 				 FB_SYNC_CLK_INVERT | FB_SYNC_CLK_IDLE_EN,
 		.vmode		= FB_VMODE_NONINTERLACED,
-		.flag		= 0,
 	}
 };
 
@@ -321,19 +319,15 @@ static int do_cpufreq(int argc, char *argv[])
 		return COMMAND_ERROR_USAGE;
 	}
 
-	printf("Switched CPU frequency to %ldMHz\n", freq);
+	printf("Switched CPU frequency to %luMHz\n", freq);
 
 	return 0;
 }
 
-static const __maybe_unused char cmd_cpufreq_help[] =
-"Usage: cpufreq 399|532\n"
-"\n"
-"Set CPU frequency to <freq> MHz\n";
-
 BAREBOX_CMD_START(cpufreq)
 	.cmd            = do_cpufreq,
-	.usage          = "adjust CPU frequency",
-	BAREBOX_CMD_HELP(cmd_cpufreq_help)
+	BAREBOX_CMD_DESC("adjust CPU frequency")
+	BAREBOX_CMD_OPTS("399|532")
+	BAREBOX_CMD_GROUP(CMD_GRP_HWMANIP)
 BAREBOX_CMD_END
 
